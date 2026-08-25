@@ -2,7 +2,7 @@
 
 **One desktop command center for all your local development projects.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-c7f464.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-c7f464.svg)](LICENSE)
 [![Windows](https://img.shields.io/badge/Windows-supported-1676d2.svg)](#installation)
 [![Linux](https://img.shields.io/badge/Linux-supported-f5a623.svg)](#installation)
 [![Electron](https://img.shields.io/badge/Electron-43-47848f.svg)](https://www.electronjs.org/)
@@ -146,4 +146,4 @@ Issues and pull requests are welcome. Please keep changes focused, preserve the 
 
 ## License
 
-Master Commander is released under the [MIT License](LICENSE).
+Master Commander is released under the [Apache License 2.0](LICENSE). It is permissive and allows commercial use, modification, and redistribution. Distributions and derivative works must preserve the license and the attribution contained in [NOTICE](NOTICE), including the name and URL of the original Master Commander project.
