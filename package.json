@@ -4,7 +4,10 @@
   "description": "A cross-platform command center for local software projects.",
   "desktopName": "Master Commander",
   "main": "out/main/index.js",
-  "author": "ildevblu",
+  "author": {
+    "name": "ildevblu",
+    "email": "9204657+ildevblu@users.noreply.github.com"
+  },
   "license": "Apache-2.0",
   "homepage": "https://github.com/ildevblu/master-commander#readme",
   "repository": {
