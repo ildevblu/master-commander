@@ -16,21 +16,21 @@ const demoState: WorkspaceState = {
         { id: 'dev', label: 'dev', command: 'npm run dev', source: 'package.json · next dev' },
         { id: 'build', label: 'build', command: 'npm run build', source: 'package.json · next build' },
         { id: 'test', label: 'test', command: 'npm run test', source: 'package.json · vitest run' },
-        { id: 'compose', label: 'Avvia servizi', command: 'docker compose -f "compose.yml" up', source: 'Docker Compose' }
+        { id: 'compose', label: 'Start services', command: 'docker compose -f "compose.yml" up', source: 'Docker Compose' }
       ]
     },
     { id: 'webapp', parentId: 'atlas', name: 'web-client', path: 'C:\\Code\\atlas-dashboard\\apps\\web-client', kinds: ['node'], customCommands: [], documents: [], commands: [
       { id: 'webdev', label: 'dev', command: 'npm run dev', source: 'package.json · next dev' }
     ] },
     { id: 'api', name: 'sample-api', path: 'C:\\Code\\sample-api', kinds: ['dotnet'], customCommands: [], documents: [], commands: [
-      { id: 'dotrun', label: 'Avvia', command: 'dotnet run --project "Sample.Api.csproj"', source: '.NET' },
+      { id: 'dotrun', label: 'Run', command: 'dotnet run --project "Sample.Api.csproj"', source: '.NET' },
       { id: 'dottest', label: 'Test', command: 'dotnet test "Sample.sln"', source: '.NET' }
     ] },
     { id: 'tools', name: 'data-toolkit', path: 'C:\\Code\\data-toolkit', kinds: ['python'], customCommands: [], documents: [], commands: [
       { id: 'pytest', label: 'Test', command: 'uv run python -m pytest', source: 'Python' }
     ] },
     { id: 'engine', name: 'physics-engine', path: 'C:\\Code\\physics-engine', kinds: ['rust'], customCommands: [], documents: [], commands: [
-      { id: 'cargo', label: 'Compila', command: 'cargo build', source: 'Cargo' }
+      { id: 'cargo', label: 'Build', command: 'cargo build', source: 'Cargo' }
     ] }
   ]
 }
@@ -50,14 +50,14 @@ export function installPreviewApi() {
     removeCustomCommand: async (projectId, commandId) => { const project = state.projects.find((item) => item.id === projectId); if (project) project.customCommands = project.customCommands.filter((item) => item.id !== commandId); return save() },
     runIntegrated: async (request) => {
       const sessionId = `preview-${Date.now()}`
-      setTimeout(() => listeners.forEach((listener) => listener({ sessionId, type: 'stdout', data: `Avvio ${request.label}…\nServer pronto su http://localhost:3000\n` })), 250)
+      setTimeout(() => listeners.forEach((listener) => listener({ sessionId, type: 'stdout', data: `Starting ${request.label}…\nServer ready at http://localhost:3000\n` })), 250)
       return { sessionId }
     },
     runExternal: async () => undefined,
-    stopProcess: async (sessionId) => { listeners.forEach((listener) => listener({ sessionId, type: 'exit', data: '\nProcesso terminato.\n', exitCode: 0 })) },
+    stopProcess: async (sessionId) => { listeners.forEach((listener) => listener({ sessionId, type: 'exit', data: '\nProcess finished.\n', exitCode: 0 })) },
     sendInput: async () => undefined,
     openFolder: async () => undefined,
-    readDocument: async (_projectId, documentId) => state.projects.flatMap((project) => project.documents).find((document) => document.id === documentId)?.preview + '\n\n## Dettagli\n\nQuesta è la versione completa del documento, caricata su richiesta.\n\n- Primo elemento\n- Secondo elemento\n',
+    readDocument: async (_projectId, documentId) => state.projects.flatMap((project) => project.documents).find((document) => document.id === documentId)?.preview + '\n\n## Details\n\nThis is the full document, loaded on demand.\n\n- First item\n- Second item\n',
     openExternal: async () => undefined,
     onProcessEvent: (callback) => { listeners.add(callback); return () => { listeners.delete(callback) } }
   }

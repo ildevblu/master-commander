@@ -138,7 +138,7 @@ Workspace configuration, favorites, exclusions, and custom commands are stored i
 
 Master Commander is an early open-source release. The core project discovery, command execution, hierarchy, persistence, and Markdown documentation flows are implemented and usable. Feedback, bug reports, additional ecosystem detectors, packaging improvements, and translations are welcome.
 
-The application interface is currently available in Italian; localization is planned.
+The application interface is available in English by default; broader localization is planned.
 
 ## Contributing
 

@@ -159,9 +159,9 @@ async function inspectProject(
       for (const [script, value] of Object.entries(manifest.scripts ?? {})) {
         commands.push(command(script, `npm run ${script}`, `package.json · ${value}`))
       }
-      if (files.has('package-lock.json')) commands.unshift(command('Installa dipendenze', 'npm install', 'npm'))
-      else if (files.has('pnpm-lock.yaml')) commands.unshift(command('Installa dipendenze', 'pnpm install', 'pnpm'))
-      else if (files.has('yarn.lock')) commands.unshift(command('Installa dipendenze', 'yarn install', 'yarn'))
+      if (files.has('package-lock.json')) commands.unshift(command('Install dependencies', 'npm install', 'npm'))
+      else if (files.has('pnpm-lock.yaml')) commands.unshift(command('Install dependencies', 'pnpm install', 'pnpm'))
+      else if (files.has('yarn.lock')) commands.unshift(command('Install dependencies', 'yarn install', 'yarn'))
     } catch { /* An invalid package.json should not prevent the workspace from loading. */ }
   }
 
@@ -171,41 +171,41 @@ async function inspectProject(
     kinds.push('dotnet')
     const target = solution ?? csproj!
     commands.push(
-      command('Ripristina', `dotnet restore "${target}"`, '.NET'),
-      command('Compila', `dotnet build "${target}"`, '.NET'),
+      command('Restore', `dotnet restore "${target}"`, '.NET'),
+      command('Build', `dotnet build "${target}"`, '.NET'),
       command('Test', `dotnet test "${target}"`, '.NET')
     )
-    if (csproj) commands.push(command('Avvia', `dotnet run --project "${csproj}"`, '.NET'))
+    if (csproj) commands.push(command('Run', `dotnet run --project "${csproj}"`, '.NET'))
   }
 
   if (files.has('Cargo.toml')) {
     kinds.push('rust')
     commands.push(
-      command('Controlla', 'cargo check', 'Cargo'), command('Compila', 'cargo build', 'Cargo'),
-      command('Avvia', 'cargo run', 'Cargo'), command('Test', 'cargo test', 'Cargo')
+      command('Check', 'cargo check', 'Cargo'), command('Build', 'cargo build', 'Cargo'),
+      command('Run', 'cargo run', 'Cargo'), command('Test', 'cargo test', 'Cargo')
     )
   }
 
   if (files.has('pyproject.toml') || files.has('requirements.txt')) {
     kinds.push('python')
     const runner = files.has('uv.lock') ? 'uv run ' : files.has('poetry.lock') ? 'poetry run ' : ''
-    if (files.has('requirements.txt')) commands.push(command('Installa dipendenze', 'python -m pip install -r requirements.txt', 'Python'))
-    commands.push(command('Avvia', `${runner}python .`, 'Python'), command('Test', `${runner}python -m pytest`, 'Python'))
+    if (files.has('requirements.txt')) commands.push(command('Install dependencies', 'python -m pip install -r requirements.txt', 'Python'))
+    commands.push(command('Run', `${runner}python .`, 'Python'), command('Test', `${runner}python -m pytest`, 'Python'))
   }
 
   if (files.has('go.mod')) {
     kinds.push('go')
-    commands.push(command('Avvia', 'go run .', 'Go'), command('Compila', 'go build ./...', 'Go'), command('Test', 'go test ./...', 'Go'))
+    commands.push(command('Run', 'go run .', 'Go'), command('Build', 'go build ./...', 'Go'), command('Test', 'go test ./...', 'Go'))
   }
 
   const composeFile = ['compose.yml', 'compose.yaml', 'docker-compose.yml', 'docker-compose.yaml'].find((file) => files.has(file))
   if (composeFile) {
     kinds.push('docker')
     commands.push(
-      command('Avvia servizi', `docker compose -f "${composeFile}" up`, 'Docker Compose'),
-      command('Avvia in background', `docker compose -f "${composeFile}" up -d`, 'Docker Compose'),
-      command('Ferma servizi', `docker compose -f "${composeFile}" down`, 'Docker Compose'),
-      command('Stato servizi', `docker compose -f "${composeFile}" ps`, 'Docker Compose')
+      command('Start services', `docker compose -f "${composeFile}" up`, 'Docker Compose'),
+      command('Start in background', `docker compose -f "${composeFile}" up -d`, 'Docker Compose'),
+      command('Stop services', `docker compose -f "${composeFile}" down`, 'Docker Compose'),
+      command('Service status', `docker compose -f "${composeFile}" ps`, 'Docker Compose')
     )
   }
 
@@ -280,7 +280,7 @@ function runIntegrated(request: RunRequest): { sessionId: string } {
   child.on('error', (error) => emitProcessEvent(sessionId, 'error', error.message))
   child.on('close', (code) => {
     runningProcesses.delete(sessionId)
-    emitProcessEvent(sessionId, 'exit', `\nProcesso terminato con codice ${code ?? 'sconosciuto'}.\n`, code)
+    emitProcessEvent(sessionId, 'exit', `\nProcess exited with code ${code ?? 'unknown'}.\n`, code)
   })
   return { sessionId }
 }
@@ -294,8 +294,8 @@ function runExternal(request: RunRequest): void {
 
   const terminalCandidates = [process.env.TERMINAL, 'x-terminal-emulator', 'gnome-terminal', 'konsole', 'xfce4-terminal'].filter(Boolean) as string[]
   const terminal = terminalCandidates.find((candidate) => spawnSync('which', [candidate]).status === 0)
-  if (!terminal) throw new Error('Nessun emulatore di terminale compatibile trovato.')
-  const holdCommand = `${request.command}; printf '\\n[Master Commander] Comando terminato.\\n'; exec bash`
+  if (!terminal) throw new Error('No compatible terminal emulator was found.')
+  const holdCommand = `${request.command}; printf '\\n[Master Commander] Command finished.\\n'; exec bash`
   let args: string[]
   if (terminal.includes('gnome-terminal')) args = [`--working-directory=${request.cwd}`, '--', 'bash', '-lc', holdCommand]
   else if (terminal.includes('konsole')) args = ['--workdir', request.cwd, '-e', 'bash', '-lc', holdCommand]
@@ -308,7 +308,7 @@ function runExternal(request: RunRequest): void {
 function registerIpc(): void {
   ipcMain.handle('workspace:load', () => refreshWorkspace())
   ipcMain.handle('workspace:add-folder', async () => {
-    const result = await dialog.showOpenDialog(mainWindow!, { properties: ['openDirectory', 'multiSelections'], title: 'Aggiungi progetti o cartelle' })
+    const result = await dialog.showOpenDialog(mainWindow!, { properties: ['openDirectory', 'multiSelections'], title: 'Add projects or folders' })
     if (result.canceled) return null
     const state = await loadWorkspace()
     state.roots = [...new Set([...state.roots, ...result.filePaths])]
@@ -358,20 +358,20 @@ function registerIpc(): void {
   ipcMain.handle('system:open-folder', (_event, folderPath: string) => shell.openPath(folderPath))
   ipcMain.handle('system:open-external', (_event, url: string) => {
     const parsed = new URL(url)
-    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Tipo di collegamento non consentito.')
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('This link type is not allowed.')
     return shell.openExternal(parsed.toString())
   })
   ipcMain.handle('document:read', async (_event, projectId: string, documentId: string) => {
     const state = await loadWorkspace()
     const project = state.projects.find((item) => item.id === projectId)
     const document = project?.documents.find((item) => item.id === documentId)
-    if (!project || !document) throw new Error('Documento non trovato.')
+    if (!project || !document) throw new Error('Document not found.')
     const relative = path.relative(path.resolve(project.path), path.resolve(document.path))
     if (relative.startsWith('..') || path.isAbsolute(relative) || path.extname(document.path).toLowerCase() !== '.md') {
-      throw new Error('Percorso documento non valido.')
+      throw new Error('Invalid document path.')
     }
     const stats = await fs.stat(document.path)
-    if (stats.size > 2 * 1024 * 1024) throw new Error('Il documento supera il limite di 2 MB.')
+    if (stats.size > 2 * 1024 * 1024) throw new Error('The document exceeds the 2 MB limit.')
     return fs.readFile(document.path, 'utf8')
   })
 }

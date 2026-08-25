@@ -26,7 +26,7 @@ const kindMeta: Record<ProjectKind, { label: string; icon: typeof Box }> = {
   go: { label: 'Go', icon: Cpu },
   docker: { label: 'Docker', icon: Container },
   unity: { label: 'Unity', icon: Box },
-  generic: { label: 'Progetto', icon: FolderOpen }
+  generic: { label: 'Project', icon: FolderOpen }
 }
 
 const cleanOutput = (value: string) => value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
@@ -172,7 +172,7 @@ function App() {
   }
 
   async function removeSelected() {
-    if (!selectedProject || !confirm(`Rimuovere “${selectedProject.name}” dall'elenco? I file non verranno toccati.`)) return
+    if (!selectedProject || !confirm(`Remove “${selectedProject.name}” from the list? Its files will not be changed.`)) return
     const state = await window.masterCommander.removeProject(selectedProject.id)
     setWorkspace(state)
     setSelectedId(state.projects[0]?.id ?? null)
@@ -190,7 +190,7 @@ function App() {
     const label = String(values.get('label') ?? '').trim()
     const value = String(values.get('command') ?? '').trim()
     if (!label || !value) return
-    const custom: ProjectCommand = { id: `custom-${Date.now()}`, label, command: value, source: 'Personalizzato' }
+    const custom: ProjectCommand = { id: `custom-${Date.now()}`, label, command: value, source: 'Custom' }
     setWorkspace(await window.masterCommander.addCustomCommand(selectedProject.id, custom))
     setCustomFormOpen(false)
   }
@@ -239,17 +239,17 @@ function App() {
         <div className="brand"><span className="brand-mark">MC</span><span>Master Commander</span></div>
         <div className="global-search">
           <Search size={15} />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cerca progetti…" aria-label="Cerca progetti" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search projects…" aria-label="Search projects" />
           <kbd>Ctrl K</kbd>
         </div>
         <div className="top-actions">
-          <button className="icon-button" onClick={refresh} title="Rileva nuovamente i comandi"><RefreshCw size={16} className={loading ? 'spin' : ''} /></button>
-          <button className="primary-button" onClick={addFolder}><Plus size={16} /> Aggiungi</button>
+          <button className="icon-button" onClick={refresh} title="Rescan commands"><RefreshCw size={16} className={loading ? 'spin' : ''} /></button>
+          <button className="primary-button" onClick={addFolder}><Plus size={16} /> Add</button>
         </div>
       </header>
 
       <aside className="sidebar">
-        <div className="sidebar-heading"><span>PROGETTI</span><span className="count">{topLevelProjects.length}</span></div>
+        <div className="sidebar-heading"><span>PROJECTS</span><span className="count">{topLevelProjects.length}</span></div>
         <nav className="project-list">
           {visibleProjects.map((project) => {
             const children = workspace.projects.filter((candidate) => candidate.parentId === project.id)
@@ -257,7 +257,7 @@ function App() {
             return <div className="project-group" key={project.id}>
               <button className={`project-item ${project.id === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(project.id)}>
                 <ProjectGlyph project={project} />
-                <span className="project-item-copy"><strong>{project.name}</strong><small>{project.kinds.map((kind) => kindMeta[kind].label).join(' · ')}{children.length ? ` · ${children.length} sottoprogetti` : ''}</small></span>
+                <span className="project-item-copy"><strong>{project.name}</strong><small>{project.kinds.map((kind) => kindMeta[kind].label).join(' · ')}{children.length ? ` · ${children.length} subprojects` : ''}</small></span>
                 {project.favorite && <Heart className="favorite-indicator" size={12} fill="currentColor" />}
                 <ChevronRight className={`project-chevron ${expanded ? 'expanded' : ''}`} size={14} />
               </button>
@@ -271,9 +271,9 @@ function App() {
           })}
         </nav>
         {!loading && topLevelProjects.length === 0 && (
-          <div className="sidebar-empty">Aggiungi un progetto o una cartella che ne contiene diversi.</div>
+          <div className="sidebar-empty">Add a project or a folder containing multiple projects.</div>
         )}
-        <div className="sidebar-footer"><span className="status-dot" /> Workspace locale</div>
+        <div className="sidebar-footer"><span className="status-dot" /> Local workspace</div>
       </aside>
 
       <main className={`workspace ${terminalOpen && activeSession ? 'with-terminal' : ''}`}>
@@ -285,8 +285,8 @@ function App() {
                 <div><h1>{selectedProject.name}</h1><button className="path-button" onClick={() => window.masterCommander.openFolder(selectedProject.path)}>{selectedProject.path}<FolderOpen size={13} /></button></div>
               </div>
               <div className="project-actions">
-                <button className={`icon-button ${selectedProject.favorite ? 'active' : ''}`} onClick={toggleFavorite} title="Preferito"><Heart size={17} fill={selectedProject.favorite ? 'currentColor' : 'none'} /></button>
-                <button className="icon-button danger-hover" onClick={removeSelected} title="Rimuovi dall'elenco"><Trash2 size={17} /></button>
+                <button className={`icon-button ${selectedProject.favorite ? 'active' : ''}`} onClick={toggleFavorite} title="Favorite"><Heart size={17} fill={selectedProject.favorite ? 'currentColor' : 'none'} /></button>
+                <button className="icon-button danger-hover" onClick={removeSelected} title="Remove from list"><Trash2 size={17} /></button>
               </div>
             </section>
 
@@ -295,11 +295,11 @@ function App() {
                 <section className="readme-section">
                   <div className="content-section-heading">
                     <div><BookOpen size={16} /><h2>README</h2><span>{readme.relativePath}</span></div>
-                    <button className="secondary-button" onClick={() => openDocument(selectedProject, readme)}><BookOpen size={14} /> Leggi tutto</button>
+                    <button className="secondary-button" onClick={() => openDocument(selectedProject, readme)}><BookOpen size={14} /> Read full document</button>
                   </div>
-                  <div className="readme-preview" role="button" tabIndex={0} onClick={() => openDocument(selectedProject, readme)} onKeyDown={(event) => { if (event.key === 'Enter') openDocument(selectedProject, readme) }} aria-label="Apri README completo">
+                  <div className="readme-preview" role="button" tabIndex={0} onClick={() => openDocument(selectedProject, readme)} onKeyDown={(event) => { if (event.key === 'Enter') openDocument(selectedProject, readme) }} aria-label="Open full README">
                     <Markdown content={readme.preview} compact />
-                    <span className="preview-fade">Apri documento completo <ChevronRight size={13} /></span>
+                    <span className="preview-fade">Open full document <ChevronRight size={13} /></span>
                   </div>
                 </section>
               )}
@@ -307,8 +307,8 @@ function App() {
               {(visibleDocuments.length > 0 || documentSearch || (selectedProject.documents.length > (readme ? 1 : 0))) && (
                 <section className="documents-section">
                   <div className="content-section-heading">
-                    <div><FileText size={16} /><h2>Documentazione</h2><span>{selectedProject.documents.length - (readme ? 1 : 0)} file Markdown</span></div>
-                    <label className="compact-search"><Search size={14} /><input value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} placeholder="Cerca documenti" /></label>
+                    <div><FileText size={16} /><h2>Documentation</h2><span>{selectedProject.documents.length - (readme ? 1 : 0)} Markdown files</span></div>
+                    <label className="compact-search"><Search size={14} /><input value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} placeholder="Search documentation" /></label>
                   </div>
                   <div className="document-list">
                     {visibleDocuments.map((document) => (
@@ -318,21 +318,21 @@ function App() {
                         <ChevronRight size={14} />
                       </button>
                     ))}
-                    {visibleDocuments.length === 0 && <div className="documents-empty">Nessun documento corrispondente.</div>}
+                    {visibleDocuments.length === 0 && <div className="documents-empty">No matching documents.</div>}
                   </div>
                 </section>
               )}
 
               {childProjects.length > 0 && (
                 <div className="subprojects-section">
-                  <div className="subprojects-heading"><h2>Sottoprogetti</h2><span>{childProjects.length}</span></div>
+                  <div className="subprojects-heading"><h2>Subprojects</h2><span>{childProjects.length}</span></div>
                   <div className="subprojects-list">
                     {childProjects.map((child) => (
                       <button key={child.id} className="subproject-row" onClick={() => setSelectedId(child.id)}>
                         <ProjectGlyph project={child} />
                         <span><strong>{child.name}</strong><small>{child.path.slice(selectedProject.path.length + 1)}</small></span>
                         <span className="subproject-kind">{child.kinds.map((kind) => kindMeta[kind].label).join(' · ')}</span>
-                        <span className="subproject-command-count">{child.commands.length + child.customCommands.length} comandi</span>
+                        <span className="subproject-command-count">{child.commands.length + child.customCommands.length} commands</span>
                         <ChevronRight size={15} />
                       </button>
                     ))}
@@ -340,49 +340,49 @@ function App() {
                 </div>
               )}
               <div className="command-toolbar">
-                <div><h2>Comandi</h2><p>{visibleCommands.length} disponibili in questo progetto</p></div>
+                <div><h2>Commands</h2><p>{visibleCommands.length} available in this project</p></div>
                 <div className="command-tools">
-                  <label className="compact-search"><Search size={14} /><input value={commandSearch} onChange={(event) => setCommandSearch(event.target.value)} placeholder="Filtra comandi" /></label>
-                  <button className="secondary-button" onClick={() => setCustomFormOpen(true)}><Plus size={15} /> Comando</button>
+                  <label className="compact-search"><Search size={14} /><input value={commandSearch} onChange={(event) => setCommandSearch(event.target.value)} placeholder="Filter commands" /></label>
+                  <button className="secondary-button" onClick={() => setCustomFormOpen(true)}><Plus size={15} /> Command</button>
                 </div>
               </div>
 
               {customFormOpen && (
                 <form className="custom-command-form" onSubmit={addCustomCommand}>
-                  <input name="label" placeholder="Nome comando" autoFocus required />
-                  <input name="command" className="mono-input" placeholder="es. npm run dev -- --host" required />
-                  <button className="primary-button" type="submit">Salva</button>
+                  <input name="label" placeholder="Command name" autoFocus required />
+                  <input name="command" className="mono-input" placeholder="e.g. npm run dev -- --host" required />
+                  <button className="primary-button" type="submit">Save</button>
                   <button className="icon-button" type="button" onClick={() => setCustomFormOpen(false)}><X size={16} /></button>
                 </form>
               )}
 
               <div className="command-list">
                 {visibleCommands.map((item) => {
-                  const custom = item.source === 'Personalizzato'
+                  const custom = selectedProject.customCommands.some((command) => command.id === item.id)
                   return (
                     <div className="command-row" key={item.id}>
-                      <button className="run-button" onClick={() => runIntegrated(selectedProject, item)} title="Esegui nella console integrata"><ChevronRight size={17} fill="currentColor" /></button>
+                      <button className="run-button" onClick={() => runIntegrated(selectedProject, item)} title="Run in the integrated console"><ChevronRight size={17} fill="currentColor" /></button>
                       <button className="command-main" onClick={() => runIntegrated(selectedProject, item)}>
                         <span className="command-name">{item.label}</span>
                         <code>{item.command}</code>
                       </button>
-                      <span className="command-source">{item.source}</span>
-                      <button className="row-action" onClick={() => navigator.clipboard.writeText(item.command)} title="Copia comando"><Copy size={15} /></button>
-                      <button className="row-action external-action" onClick={() => runExternal(selectedProject, item)} title="Apri nel terminale esterno"><ExternalLink size={15} /></button>
-                      {custom && <button className="row-action danger-hover" onClick={() => removeCustomCommand(item.id)} title="Elimina comando"><Trash2 size={15} /></button>}
+                      <span className="command-source">{custom ? 'Custom' : item.source}</span>
+                      <button className="row-action" onClick={() => navigator.clipboard.writeText(item.command)} title="Copy command"><Copy size={15} /></button>
+                      <button className="row-action external-action" onClick={() => runExternal(selectedProject, item)} title="Open in an external terminal"><ExternalLink size={15} /></button>
+                      {custom && <button className="row-action danger-hover" onClick={() => removeCustomCommand(item.id)} title="Delete command"><Trash2 size={15} /></button>}
                     </div>
                   )
                 })}
-                {visibleCommands.length === 0 && <div className="no-commands">Nessun comando trovato. Puoi aggiungerne uno personalizzato.</div>}
+                {visibleCommands.length === 0 && <div className="no-commands">No commands found. You can add a custom command.</div>}
               </div>
             </section>
           </>
         ) : (
           <section className="welcome-state">
             <div className="welcome-symbol"><TerminalSquare size={38} /></div>
-            <h1>Il tuo workspace, sotto comando.</h1>
-            <p>Aggiungi un progetto oppure una cartella: i comandi disponibili verranno rilevati automaticamente.</p>
-            <button className="primary-button large" onClick={addFolder}><FolderOpen size={17} /> Scegli una cartella</button>
+            <h1>Your workspace, under control.</h1>
+            <p>Add a project or a folder. Available commands will be detected automatically.</p>
+            <button className="primary-button large" onClick={addFolder}><FolderOpen size={17} /> Choose a folder</button>
             <div className="supported-stack"><span>Node</span><span>.NET</span><span>Rust</span><span>Python</span><span>Go</span><span>Docker</span></div>
           </section>
         )}
@@ -401,11 +401,11 @@ function App() {
               ))}
             </div>
             <div className="terminal-actions">
-              {activeSession.status === 'running' && <button onClick={() => window.masterCommander.stopProcess(activeSession.id)}><CircleStop size={14} /> Termina</button>}
+              {activeSession.status === 'running' && <button onClick={() => window.masterCommander.stopProcess(activeSession.id)}><CircleStop size={14} /> Stop</button>}
               <button onClick={() => setTerminalOpen(false)}><X size={15} /></button>
             </div>
           </div>
-          <pre className="terminal-output" ref={terminalOutputRef}>{activeSession.output || 'Avvio…'}</pre>
+          <pre className="terminal-output" ref={terminalOutputRef}>{activeSession.output || 'Starting…'}</pre>
           {activeSession.status === 'running' && (
             <form className="terminal-input" onSubmit={(event) => {
               event.preventDefault()
@@ -413,7 +413,7 @@ function App() {
               window.masterCommander.sendInput(activeSession.id, `${input.value}\n`)
               input.value = ''
             }}>
-              <span>stdin</span><input name="stdin" autoComplete="off" placeholder="Invia input al processo…" /><button><Send size={14} /></button>
+              <span>stdin</span><input name="stdin" autoComplete="off" placeholder="Send input to the process…" /><button><Send size={14} /></button>
             </form>
           )}
         </section>
@@ -424,11 +424,11 @@ function App() {
         <div className="document-overlay" onMouseDown={(event) => { if (event.currentTarget === event.target) setSelectedDocument(null) }}>
           <article className="document-reader">
             <header className="document-reader-header">
-              <div><span>DOCUMENTAZIONE</span><h2>{selectedDocument.document.title}</h2><p>{selectedDocument.project.name} / {selectedDocument.document.relativePath}</p></div>
-              <button className="icon-button" onClick={() => setSelectedDocument(null)} title="Chiudi"><X size={18} /></button>
+              <div><span>DOCUMENTATION</span><h2>{selectedDocument.document.title}</h2><p>{selectedDocument.project.name} / {selectedDocument.document.relativePath}</p></div>
+              <button className="icon-button" onClick={() => setSelectedDocument(null)} title="Close"><X size={18} /></button>
             </header>
             <div className="document-reader-content">
-              {documentLoading ? <div className="document-loading">Caricamento documento…</div> : <Markdown content={documentContent} />}
+              {documentLoading ? <div className="document-loading">Loading document…</div> : <Markdown content={documentContent} />}
             </div>
           </article>
         </div>
