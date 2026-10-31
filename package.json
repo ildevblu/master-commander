@@ -1,6 +1,6 @@
 {
   "name": "master-commander",
-  "version": "0.1.1",
+  "version": "1.2.0",
   "description": "A cross-platform command center for local software projects.",
   "desktopName": "Master Commander",
   "main": "out/main/index.js",
@@ -59,7 +59,9 @@
       "out/**/*"
     ],
     "asar": true,
-    "asarUnpack": ["node_modules/node-pty/**/*"],
+    "asarUnpack": [
+      "node_modules/node-pty/**/*"
+    ],
     "win": {
       "target": [
         "nsis",
