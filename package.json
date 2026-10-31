@@ -1,6 +1,6 @@
 {
   "name": "master-commander",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A cross-platform command center for local software projects.",
   "desktopName": "Master Commander",
   "main": "out/main/index.js",
