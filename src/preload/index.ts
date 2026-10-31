@@ -16,6 +16,7 @@ const api = {
   runExternal: (request: RunRequest): Promise<void> => ipcRenderer.invoke('process:external', request),
   stopProcess: (sessionId: string): Promise<void> => ipcRenderer.invoke('process:stop', sessionId),
   sendInput: (sessionId: string, input: string): Promise<void> => ipcRenderer.invoke('process:input', sessionId, input),
+  resizeTerminal: (sessionId: string, cols: number, rows: number): Promise<void> => ipcRenderer.invoke('process:resize', sessionId, cols, rows),
   openFolder: (path: string): Promise<void> => ipcRenderer.invoke('system:open-folder', path),
   readDocument: (projectId: string, documentId: string): Promise<string> => ipcRenderer.invoke('document:read', projectId, documentId),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('system:open-external', url),

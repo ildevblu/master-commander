@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
-import { ChildProcessWithoutNullStreams, spawn, spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { spawn as spawnPty, type IPty } from 'node-pty'
 import { createHash } from 'node:crypto'
 import { existsSync, promises as fs } from 'node:fs'
 import path from 'node:path'
@@ -17,7 +18,7 @@ const PROJECT_MARKERS = new Set([
 ])
 
 let mainWindow: BrowserWindow | null = null
-const runningProcesses = new Map<string, ChildProcessWithoutNullStreams>()
+const runningProcesses = new Map<string, IPty>()
 
 const emptyWorkspace = (): WorkspaceState => ({ roots: [], projects: [], excludedPaths: [] })
 const idFor = (value: string): string => createHash('sha1').update(value.toLowerCase()).digest('hex').slice(0, 12)
@@ -244,20 +245,32 @@ async function refreshWorkspace(state?: WorkspaceState): Promise<WorkspaceState>
       const nestedPaths = await findNestedProjectDirectories(topLevelPath, 4, isUnityDirectory(topEntries))
       const parent = await inspectProject(topLevelPath, previous.get(topLevelPath.toLowerCase()), undefined, nestedPaths)
       descriptors.push(parent)
-      for (const nestedPath of nestedPaths) {
-        if (excluded.has(nestedPath.toLowerCase())) continue
+      const includedNestedPaths = nestedPaths.filter((nestedPath) => ![...excluded].some((excludedPath) => nestedPath.toLowerCase() === excludedPath || nestedPath.toLowerCase().startsWith(`${excludedPath}${path.sep}`)))
+      const hierarchyPaths = [topLevelPath, ...includedNestedPaths]
+      for (const nestedPath of includedNestedPaths) {
         const deeperProjects = nestedPaths.filter((candidate) => candidate !== nestedPath && path.resolve(candidate).startsWith(`${path.resolve(nestedPath)}${path.sep}`))
-        descriptors.push(await inspectProject(nestedPath, previous.get(nestedPath.toLowerCase()), parent.id, deeperProjects))
+        const parentPath = hierarchyPaths
+          .filter((candidate) => candidate !== nestedPath && path.resolve(nestedPath).startsWith(`${path.resolve(candidate)}${path.sep}`))
+          .sort((a, b) => path.resolve(b).length - path.resolve(a).length)[0] ?? topLevelPath
+        descriptors.push(await inspectProject(nestedPath, previous.get(nestedPath.toLowerCase()), idFor(parentPath), deeperProjects))
       }
     }
   }
   const compareProjects = (a: ProjectDescriptor, b: ProjectDescriptor) =>
     Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name)
-  const parents = descriptors.filter((project) => !project.parentId).sort(compareProjects)
-  const projects = parents.flatMap((parent) => [
-    parent,
-    ...descriptors.filter((project) => project.parentId === parent.id).sort(compareProjects)
-  ])
+  const childrenByParent = new Map<string | undefined, ProjectDescriptor[]>()
+  for (const project of descriptors) {
+    const siblings = childrenByParent.get(project.parentId) ?? []
+    siblings.push(project)
+    childrenByParent.set(project.parentId, siblings)
+  }
+  for (const siblings of childrenByParent.values()) siblings.sort(compareProjects)
+  const projects: ProjectDescriptor[] = []
+  function appendBranch(project: ProjectDescriptor): void {
+    projects.push(project)
+    for (const child of childrenByParent.get(project.id) ?? []) appendBranch(child)
+  }
+  for (const parent of childrenByParent.get(undefined) ?? []) appendBranch(parent)
   return saveWorkspace({ roots: current.roots.filter(existsSync), projects, excludedPaths: current.excludedPaths ?? [] })
 }
 
@@ -267,20 +280,20 @@ function emitProcessEvent(sessionId: string, type: 'stdout' | 'stderr' | 'exit' 
 
 function spawnIntegrated(command: string, args: string[], cwd: string, useShell: boolean): { sessionId: string } {
   const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  const child = spawn(command, args, {
+  const executable = useShell ? (process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : process.env.SHELL ?? '/bin/bash') : command
+  const shellArgs = useShell ? (process.platform === 'win32' ? ['/d', '/s', '/c', command] : ['-lc', command]) : args
+  const child = spawnPty(executable, shellArgs, {
     cwd,
-    shell: useShell,
-    windowsHide: true,
-    detached: process.platform !== 'win32',
-    env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' }
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 24,
+    env: { ...process.env, TERM: 'xterm-256color' }
   })
   runningProcesses.set(sessionId, child)
-  child.stdout.on('data', (data) => emitProcessEvent(sessionId, 'stdout', data.toString()))
-  child.stderr.on('data', (data) => emitProcessEvent(sessionId, 'stderr', data.toString()))
-  child.on('error', (error) => emitProcessEvent(sessionId, 'error', error.message))
-  child.on('close', (code) => {
+  child.onData((data) => emitProcessEvent(sessionId, 'stdout', data))
+  child.onExit(({ exitCode: code }) => {
     runningProcesses.delete(sessionId)
-    emitProcessEvent(sessionId, 'exit', `\nProcess exited with code ${code ?? 'unknown'}.\n`, code)
+    emitProcessEvent(sessionId, 'exit', `\r\nProcess exited with code ${code}.\r\n`, code)
   })
   return { sessionId }
 }
@@ -291,8 +304,8 @@ function runIntegrated(request: RunRequest): { sessionId: string } {
 
 function openIntegratedShell(cwd: string): { sessionId: string; command: string } {
   if (!existsSync(cwd)) throw new Error('The project folder no longer exists.')
-  const command = process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : process.env.SHELL ?? 'bash'
-  const args = process.platform === 'win32' ? [] : ['-i']
+  const command = process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL ?? '/bin/bash'
+  const args = process.platform === 'win32' ? ['-NoLogo'] : ['-i']
   return { ...spawnIntegrated(command, args, cwd, false), command: path.basename(command) }
 }
 
@@ -335,7 +348,18 @@ function registerIpc(): void {
     const isRoot = state.roots.some((root) => root.toLowerCase() === project.path.toLowerCase())
     if (isRoot) state.roots = state.roots.filter((root) => root.toLowerCase() !== project.path.toLowerCase())
     else state.excludedPaths = [...new Set([...(state.excludedPaths ?? []), project.path])]
-    state.projects = state.projects.filter((item) => item.id !== id)
+    const removedIds = new Set([id])
+    let added = true
+    while (added) {
+      added = false
+      for (const item of state.projects) {
+        if (item.parentId && removedIds.has(item.parentId) && !removedIds.has(item.id)) {
+          removedIds.add(item.id)
+          added = true
+        }
+      }
+    }
+    state.projects = state.projects.filter((item) => !removedIds.has(item.id))
     return saveWorkspace(state)
   })
   ipcMain.handle('workspace:toggle-favorite', async (_event, id: string) => {
@@ -360,12 +384,14 @@ function registerIpc(): void {
   ipcMain.handle('process:run', (_event, request: RunRequest) => runIntegrated(request))
   ipcMain.handle('process:shell', (_event, cwd: string) => openIntegratedShell(cwd))
   ipcMain.handle('process:external', (_event, request: RunRequest) => runExternal(request))
-  ipcMain.handle('process:input', (_event, sessionId: string, input: string) => runningProcesses.get(sessionId)?.stdin.write(input))
+  ipcMain.handle('process:input', (_event, sessionId: string, input: string) => runningProcesses.get(sessionId)?.write(input))
+  ipcMain.handle('process:resize', (_event, sessionId: string, cols: number, rows: number) => {
+    if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && rows > 0 && cols <= 1000 && rows <= 1000) runningProcesses.get(sessionId)?.resize(cols, rows)
+  })
   ipcMain.handle('process:stop', (_event, sessionId: string) => {
     const child = runningProcesses.get(sessionId)
-    if (!child?.pid) return
-    if (process.platform === 'win32') spawn('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
-    else process.kill(-child.pid, 'SIGTERM')
+    if (!child) return
+    child.kill()
   })
   ipcMain.handle('system:open-folder', (_event, folderPath: string) => shell.openPath(folderPath))
   ipcMain.handle('system:open-external', (_event, url: string) => {
@@ -416,5 +442,7 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  for (const child of runningProcesses.values()) child.kill()
+  runningProcesses.clear()
   if (process.platform !== 'darwin') app.quit()
 })

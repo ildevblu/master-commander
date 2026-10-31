@@ -1,10 +1,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpen, Box, Braces, ChevronRight, CircleStop, Container, Copy, Cpu, ExternalLink, FileCode2,
-  FileText, FolderOpen, Heart, Plus, RefreshCw, Search, Send, Settings2, TerminalSquare, Trash2, X
+  FileText, FolderOpen, Heart, Plus, RefreshCw, Search, Settings2, TerminalSquare, Trash2, X
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { TerminalView } from './TerminalView'
 import type { ProcessEvent, ProjectCommand, ProjectDescriptor, ProjectDocument, ProjectKind, RunRequest, WorkspaceState } from '../../shared/types'
 
 interface Session {
@@ -29,7 +30,6 @@ const kindMeta: Record<ProjectKind, { label: string; icon: typeof Box }> = {
   generic: { label: 'Project', icon: FolderOpen }
 }
 
-const cleanOutput = (value: string) => value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '')
 
 function ProjectGlyph({ project }: { project: ProjectDescriptor }) {
   const Icon = kindMeta[project.kinds[0]].icon
@@ -46,28 +46,59 @@ function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [terminalOpen, setTerminalOpen] = useState(true)
   const [customFormOpen, setCustomFormOpen] = useState(false)
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Set<string>>(() => new Set())
   const [documentSearch, setDocumentSearch] = useState('')
   const [selectedDocument, setSelectedDocument] = useState<{ project: ProjectDescriptor; document: ProjectDocument } | null>(null)
   const [documentContent, setDocumentContent] = useState('')
   const [documentLoading, setDocumentLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const eventBacklog = useRef(new Map<string, ProcessEvent[]>())
-  const terminalOutputRef = useRef<HTMLPreElement>(null)
 
   const selectedProject = workspace.projects.find((project) => project.id === selectedId) ?? null
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null
 
-  const topLevelProjects = useMemo(() => workspace.projects.filter((project) => !project.parentId), [workspace.projects])
-  const visibleProjects = useMemo(() => {
+  const projectById = useMemo(() => new Map(workspace.projects.map((project) => [project.id, project])), [workspace.projects])
+  const projectsByParent = useMemo(() => {
+    const result = new Map<string | undefined, ProjectDescriptor[]>()
+    for (const project of workspace.projects) {
+      const siblings = result.get(project.parentId) ?? []
+      siblings.push(project)
+      result.set(project.parentId, siblings)
+    }
+    return result
+  }, [workspace.projects])
+  const topLevelProjects = projectsByParent.get(undefined) ?? []
+  const descendantCounts = useMemo(() => {
+    const result = new Map<string, number>()
+    function count(projectId: string, visited = new Set<string>()): number {
+      if (visited.has(projectId)) return 0
+      const cached = result.get(projectId)
+      if (cached !== undefined) return cached
+      const nextVisited = new Set(visited).add(projectId)
+      const children = projectsByParent.get(projectId) ?? []
+      const total = children.reduce((sum, child) => sum + 1 + count(child.id, nextVisited), 0)
+      result.set(projectId, total)
+      return total
+    }
+    for (const project of workspace.projects) count(project.id)
+    return result
+  }, [projectsByParent, workspace.projects])
+  const visibleProjectIds = useMemo(() => {
     const query = search.trim().toLowerCase()
-    return topLevelProjects.filter((project) => {
-      const children = workspace.projects.filter((candidate) => candidate.parentId === project.id)
-      return !query
-        || project.name.toLowerCase().includes(query)
-        || project.path.toLowerCase().includes(query)
-        || children.some((child) => child.name.toLowerCase().includes(query) || child.path.toLowerCase().includes(query))
-    })
-  }, [topLevelProjects, workspace.projects, search])
+    if (!query) return new Set(workspace.projects.map((project) => project.id))
+    const result = new Set<string>()
+    for (const project of workspace.projects) {
+      if (!project.name.toLowerCase().includes(query) && !project.path.toLowerCase().includes(query)) continue
+      let current: ProjectDescriptor | undefined = project
+      const visited = new Set<string>()
+      while (current && !visited.has(current.id)) {
+        result.add(current.id)
+        visited.add(current.id)
+        current = current.parentId ? projectById.get(current.parentId) : undefined
+      }
+    }
+    return result
+  }, [projectById, search, workspace.projects])
 
   const visibleCommands = useMemo(() => {
     if (!selectedProject) return []
@@ -101,20 +132,32 @@ function App() {
       return current.map((session) => {
         if (session.id !== event.sessionId) return session
         const status = event.type === 'exit' ? (event.exitCode === 0 ? 'success' : 'failed') : event.type === 'error' ? 'failed' : session.status
-        return { ...session, output: session.output + cleanOutput(event.data), status }
+        return { ...session, output: session.output + event.data, status }
       })
     })
     if (!handled) eventBacklog.current.set(event.sessionId, [...(eventBacklog.current.get(event.sessionId) ?? []), event])
   }), [])
 
-  useEffect(() => {
-    if (terminalOutputRef.current) terminalOutputRef.current.scrollTop = terminalOutputRef.current.scrollHeight
-  }, [activeSession?.output])
 
   useEffect(() => {
     setDocumentSearch('')
     setSelectedDocument(null)
   }, [selectedId])
+
+  useEffect(() => {
+    if (!selectedId) return
+    setExpandedProjectIds((current) => {
+      const next = new Set(current)
+      let project = projectById.get(selectedId)
+      const visited = new Set<string>()
+      while (project && !visited.has(project.id)) {
+        next.add(project.id)
+        visited.add(project.id)
+        project = project.parentId ? projectById.get(project.parentId) : undefined
+      }
+      return next
+    })
+  }, [projectById, selectedId])
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelectedDocument(null) }
@@ -155,9 +198,9 @@ function App() {
     const buffered = eventBacklog.current.get(sessionId) ?? []
     eventBacklog.current.delete(sessionId)
     let status: Session['status'] = 'running'
-    let output = `❯ ${command}\n\n`
+    let output = `❯ ${command}\r\n\r\n`
     for (const event of buffered) {
-      output += cleanOutput(event.data)
+      output += event.data
       if (event.type === 'exit') status = event.exitCode === 0 ? 'success' : 'failed'
       if (event.type === 'error') status = 'failed'
     }
@@ -237,11 +280,50 @@ function App() {
   }
 
   function closeSession(id: string) {
+    if (sessions.find((session) => session.id === id)?.status === 'running') void window.masterCommander.stopProcess(id)
     setSessions((current) => current.filter((session) => session.id !== id))
     if (activeSessionId === id) {
       const remaining = sessions.filter((session) => session.id !== id)
       setActiveSessionId(remaining.at(-1)?.id ?? null)
     }
+  }
+
+  function selectTreeProject(project: ProjectDescriptor, hasChildren: boolean) {
+    setSelectedId(project.id)
+    if (!hasChildren) return
+    setExpandedProjectIds((current) => {
+      const next = new Set(current)
+      if (selectedId === project.id && next.has(project.id)) next.delete(project.id)
+      else next.add(project.id)
+      return next
+    })
+  }
+
+  function renderProjectNode(project: ProjectDescriptor, depth = 0): React.ReactNode {
+    if (!visibleProjectIds.has(project.id)) return null
+    const allChildren = projectsByParent.get(project.id) ?? []
+    const visibleChildren = allChildren.filter((child) => visibleProjectIds.has(child.id))
+    const hasChildren = allChildren.length > 0
+    const expanded = hasChildren && (search.trim().length > 0 ? visibleChildren.length > 0 : expandedProjectIds.has(project.id))
+    const descendantCount = descendantCounts.get(project.id) ?? 0
+    return (
+      <div className={`project-node ${depth === 0 ? 'root-project' : 'nested-project'}`} key={project.id}>
+        <button
+          className={`project-item ${project.id === selectedId ? 'selected' : ''}`}
+          onClick={() => selectTreeProject(project, hasChildren)}
+          aria-expanded={hasChildren ? expanded : undefined}
+        >
+          <ProjectGlyph project={project} />
+          <span className="project-item-copy">
+            <strong>{project.name}</strong>
+            <small>{project.kinds.map((kind) => kindMeta[kind].label).join(' · ')}{descendantCount ? ` · ${descendantCount} subprojects` : ''}</small>
+          </span>
+          {project.favorite && <Heart className="favorite-indicator" size={12} fill="currentColor" />}
+          {hasChildren && <ChevronRight className={`project-chevron ${expanded ? 'expanded' : ''}`} size={14} />}
+        </button>
+        {expanded && <div className="project-children">{visibleChildren.map((child) => renderProjectNode(child, depth + 1))}</div>}
+      </div>
+    )
   }
 
   return (
@@ -262,24 +344,7 @@ function App() {
       <aside className="sidebar">
         <div className="sidebar-heading"><span>PROJECTS</span><span className="count">{topLevelProjects.length}</span></div>
         <nav className="project-list">
-          {visibleProjects.map((project) => {
-            const children = workspace.projects.filter((candidate) => candidate.parentId === project.id)
-            const expanded = project.id === selectedId || selectedProject?.parentId === project.id || search.trim().length > 0
-            return <div className="project-group" key={project.id}>
-              <button className={`project-item ${project.id === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(project.id)}>
-                <ProjectGlyph project={project} />
-                <span className="project-item-copy"><strong>{project.name}</strong><small>{project.kinds.map((kind) => kindMeta[kind].label).join(' · ')}{children.length ? ` · ${children.length} subprojects` : ''}</small></span>
-                {project.favorite && <Heart className="favorite-indicator" size={12} fill="currentColor" />}
-                <ChevronRight className={`project-chevron ${expanded ? 'expanded' : ''}`} size={14} />
-              </button>
-              {expanded && children.map((child) => (
-                <button key={child.id} className={`project-item child-project ${child.id === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(child.id)}>
-                  <ProjectGlyph project={child} />
-                  <span className="project-item-copy"><strong>{child.name}</strong><small>{child.kinds.map((kind) => kindMeta[kind].label).join(' · ')}</small></span>
-                </button>
-              ))}
-            </div>
-          })}
+          {topLevelProjects.map((project) => renderProjectNode(project))}
         </nav>
         {!loading && topLevelProjects.length === 0 && (
           <div className="sidebar-empty">Add a project or a folder containing multiple projects.</div>
@@ -418,17 +483,7 @@ function App() {
               <button onClick={() => setTerminalOpen(false)}><X size={15} /></button>
             </div>
           </div>
-          <pre className="terminal-output" ref={terminalOutputRef}>{activeSession.output || 'Starting…'}</pre>
-          {activeSession.status === 'running' && (
-            <form className="terminal-input" onSubmit={(event) => {
-              event.preventDefault()
-              const input = event.currentTarget.elements.namedItem('stdin') as HTMLInputElement
-              window.masterCommander.sendInput(activeSession.id, `${input.value}\n`)
-              input.value = ''
-            }}>
-              <span>stdin</span><input name="stdin" autoComplete="off" placeholder="Send input to the process…" /><button><Send size={14} /></button>
-            </form>
-          )}
+          <TerminalView sessionId={activeSession.id} output={activeSession.output} running={activeSession.status === 'running'} />
         </section>
       )}
 

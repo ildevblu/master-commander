@@ -34,7 +34,7 @@ Master Commander turns that folder into an operational workspace:
 
 - Add an individual project or a folder containing multiple projects.
 - Only direct children of a workspace folder become top-level projects.
-- Nested applications and packages are shown as children of their parent project.
+- Nested applications and packages form a collapsible tree under their closest parent project, at any discovered depth.
 - Generated folders, dependencies, caches, and build output are ignored.
 - Unity projects are detected without turning `Library`, `Packages`, `Assets`, or cached modules into separate projects.
 
@@ -54,8 +54,9 @@ Master Commander turns that folder into an operational workspace:
 ### Command execution
 
 - Integrated console with live stdout/stderr.
-- Standard input support for simple interactive commands.
+- Direct terminal input, ANSI colors, keyboard shortcuts, and automatic resizing through a native pseudoterminal.
 - Open an interactive shell directly in the selected project's folder.
+- New Windows consoles use PowerShell; Linux consoles use the configured system shell.
 - Stop running processes and their child processes.
 - Open any command in a real external terminal for TUI applications, debuggers, prompts, and fully interactive processes.
 - Copy commands without running them.

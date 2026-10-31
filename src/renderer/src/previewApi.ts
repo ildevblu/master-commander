@@ -22,6 +22,9 @@ const demoState: WorkspaceState = {
     { id: 'webapp', parentId: 'atlas', name: 'web-client', path: 'C:\\Code\\atlas-dashboard\\apps\\web-client', kinds: ['node'], customCommands: [], documents: [], commands: [
       { id: 'webdev', label: 'dev', command: 'npm run dev', source: 'package.json · next dev' }
     ] },
+    { id: 'components', parentId: 'webapp', name: 'ui-components', path: 'C:\\Code\\atlas-dashboard\\apps\\web-client\\packages\\ui-components', kinds: ['node'], customCommands: [], documents: [], commands: [
+      { id: 'components-build', label: 'build', command: 'npm run build', source: 'package.json · vite build' }
+    ] },
     { id: 'api', name: 'sample-api', path: 'C:\\Code\\sample-api', kinds: ['dotnet'], customCommands: [], documents: [], commands: [
       { id: 'dotrun', label: 'Run', command: 'dotnet run --project "Sample.Api.csproj"', source: '.NET' },
       { id: 'dottest', label: 'Test', command: 'dotnet test "Sample.sln"', source: '.NET' }
@@ -61,6 +64,7 @@ export function installPreviewApi() {
     runExternal: async () => undefined,
     stopProcess: async (sessionId) => { listeners.forEach((listener) => listener({ sessionId, type: 'exit', data: '\nProcess finished.\n', exitCode: 0 })) },
     sendInput: async () => undefined,
+    resizeTerminal: async () => undefined,
     openFolder: async () => undefined,
     readDocument: async (_projectId, documentId) => state.projects.flatMap((project) => project.documents).find((document) => document.id === documentId)?.preview + '\n\n## Details\n\nThis is the full document, loaded on demand.\n\n- First item\n- Second item\n',
     openExternal: async () => undefined,
