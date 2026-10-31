@@ -12,6 +12,7 @@ const api = {
   removeCustomCommand: (projectId: string, commandId: string): Promise<WorkspaceState> =>
     ipcRenderer.invoke('workspace:remove-command', projectId, commandId),
   runIntegrated: (request: RunRequest): Promise<{ sessionId: string }> => ipcRenderer.invoke('process:run', request),
+  openShell: (cwd: string): Promise<{ sessionId: string; command: string }> => ipcRenderer.invoke('process:shell', cwd),
   runExternal: (request: RunRequest): Promise<void> => ipcRenderer.invoke('process:external', request),
   stopProcess: (sessionId: string): Promise<void> => ipcRenderer.invoke('process:stop', sessionId),
   sendInput: (sessionId: string, input: string): Promise<void> => ipcRenderer.invoke('process:input', sessionId, input),

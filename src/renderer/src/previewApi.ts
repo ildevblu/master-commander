@@ -53,6 +53,11 @@ export function installPreviewApi() {
       setTimeout(() => listeners.forEach((listener) => listener({ sessionId, type: 'stdout', data: `Starting ${request.label}…\nServer ready at http://localhost:3000\n` })), 250)
       return { sessionId }
     },
+    openShell: async (cwd) => {
+      const sessionId = `preview-shell-${Date.now()}`
+      setTimeout(() => listeners.forEach((listener) => listener({ sessionId, type: 'stdout', data: `${cwd}> ` })), 100)
+      return { sessionId, command: 'cmd.exe' }
+    },
     runExternal: async () => undefined,
     stopProcess: async (sessionId) => { listeners.forEach((listener) => listener({ sessionId, type: 'exit', data: '\nProcess finished.\n', exitCode: 0 })) },
     sendInput: async () => undefined,

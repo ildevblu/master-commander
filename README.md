@@ -55,6 +55,7 @@ Master Commander turns that folder into an operational workspace:
 
 - Integrated console with live stdout/stderr.
 - Standard input support for simple interactive commands.
+- Open an interactive shell directly in the selected project's folder.
 - Stop running processes and their child processes.
 - Open any command in a real external terminal for TUI applications, debuggers, prompts, and fully interactive processes.
 - Copy commands without running them.

@@ -265,11 +265,11 @@ function emitProcessEvent(sessionId: string, type: 'stdout' | 'stderr' | 'exit' 
   mainWindow?.webContents.send('process:event', { sessionId, type, data, exitCode })
 }
 
-function runIntegrated(request: RunRequest): { sessionId: string } {
+function spawnIntegrated(command: string, args: string[], cwd: string, useShell: boolean): { sessionId: string } {
   const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  const child = spawn(request.command, {
-    cwd: request.cwd,
-    shell: true,
+  const child = spawn(command, args, {
+    cwd,
+    shell: useShell,
     windowsHide: true,
     detached: process.platform !== 'win32',
     env: { ...process.env, FORCE_COLOR: '0', NO_COLOR: '1' }
@@ -283,6 +283,17 @@ function runIntegrated(request: RunRequest): { sessionId: string } {
     emitProcessEvent(sessionId, 'exit', `\nProcess exited with code ${code ?? 'unknown'}.\n`, code)
   })
   return { sessionId }
+}
+
+function runIntegrated(request: RunRequest): { sessionId: string } {
+  return spawnIntegrated(request.command, [], request.cwd, true)
+}
+
+function openIntegratedShell(cwd: string): { sessionId: string; command: string } {
+  if (!existsSync(cwd)) throw new Error('The project folder no longer exists.')
+  const command = process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : process.env.SHELL ?? 'bash'
+  const args = process.platform === 'win32' ? [] : ['-i']
+  return { ...spawnIntegrated(command, args, cwd, false), command: path.basename(command) }
 }
 
 function runExternal(request: RunRequest): void {
@@ -347,6 +358,7 @@ function registerIpc(): void {
     return saveWorkspace(state)
   })
   ipcMain.handle('process:run', (_event, request: RunRequest) => runIntegrated(request))
+  ipcMain.handle('process:shell', (_event, cwd: string) => openIntegratedShell(cwd))
   ipcMain.handle('process:external', (_event, request: RunRequest) => runExternal(request))
   ipcMain.handle('process:input', (_event, sessionId: string, input: string) => runningProcesses.get(sessionId)?.stdin.write(input))
   ipcMain.handle('process:stop', (_event, sessionId: string) => {

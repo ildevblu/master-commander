@@ -147,22 +147,33 @@ function App() {
     setError(null)
     try {
       const result = await window.masterCommander.runIntegrated(requestFor(project, item))
-      const initial = `❯ ${item.command}\n\n`
-      const buffered = eventBacklog.current.get(result.sessionId) ?? []
-      eventBacklog.current.delete(result.sessionId)
-      let status: Session['status'] = 'running'
-      let output = initial
-      for (const event of buffered) {
-        output += cleanOutput(event.data)
-        if (event.type === 'exit') status = event.exitCode === 0 ? 'success' : 'failed'
-        if (event.type === 'error') status = 'failed'
-      }
-      setSessions((current) => [...current, {
-        id: result.sessionId, projectId: project.id, projectName: project.name,
-        label: item.label, command: item.command, output, status
-      }])
-      setActiveSessionId(result.sessionId)
-      setTerminalOpen(true)
+      registerSession(project, item.label, item.command, result.sessionId)
+    } catch (reason) { setError(String(reason)) }
+  }
+
+  function registerSession(project: ProjectDescriptor, label: string, command: string, sessionId: string) {
+    const buffered = eventBacklog.current.get(sessionId) ?? []
+    eventBacklog.current.delete(sessionId)
+    let status: Session['status'] = 'running'
+    let output = `❯ ${command}\n\n`
+    for (const event of buffered) {
+      output += cleanOutput(event.data)
+      if (event.type === 'exit') status = event.exitCode === 0 ? 'success' : 'failed'
+      if (event.type === 'error') status = 'failed'
+    }
+    setSessions((current) => [...current, {
+      id: sessionId, projectId: project.id, projectName: project.name,
+      label, command, output, status
+    }])
+    setActiveSessionId(sessionId)
+    setTerminalOpen(true)
+  }
+
+  async function openConsole(project: ProjectDescriptor) {
+    setError(null)
+    try {
+      const result = await window.masterCommander.openShell(project.path)
+      registerSession(project, 'shell', result.command, result.sessionId)
     } catch (reason) { setError(String(reason)) }
   }
 
@@ -285,6 +296,7 @@ function App() {
                 <div><h1>{selectedProject.name}</h1><button className="path-button" onClick={() => window.masterCommander.openFolder(selectedProject.path)}>{selectedProject.path}<FolderOpen size={13} /></button></div>
               </div>
               <div className="project-actions">
+                <button className="icon-button" onClick={() => openConsole(selectedProject)} title="Open a new console in this project"><TerminalSquare size={17} /></button>
                 <button className={`icon-button ${selectedProject.favorite ? 'active' : ''}`} onClick={toggleFavorite} title="Favorite"><Heart size={17} fill={selectedProject.favorite ? 'currentColor' : 'none'} /></button>
                 <button className="icon-button danger-hover" onClick={removeSelected} title="Remove from list"><Trash2 size={17} /></button>
               </div>
@@ -401,6 +413,7 @@ function App() {
               ))}
             </div>
             <div className="terminal-actions">
+              {selectedProject && <button onClick={() => openConsole(selectedProject)} title="Open a new console in the selected project"><Plus size={14} /> New console</button>}
               {activeSession.status === 'running' && <button onClick={() => window.masterCommander.stopProcess(activeSession.id)}><CircleStop size={14} /> Stop</button>}
               <button onClick={() => setTerminalOpen(false)}><X size={15} /></button>
             </div>
